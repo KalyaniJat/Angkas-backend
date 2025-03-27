@@ -13,7 +13,7 @@ class ParseJSONToDict(beam.DoFn):
 
 def run():
     # Input: Cleaned JSON files from Silver layer in GCS
-    INPUT_PATH = "gs://angkas-silver-bucket/processed-data/valid/silver.json"
+    INPUT_PATH = "gs://angkas-silver-bucket/processed-data/valid/*.json"
 
 
     # Output: BigQuery target location
@@ -34,11 +34,13 @@ def run():
 
     # Target BigQuery table schema
     table_schema = {
-        "fields": [
+    "fields": [
             {"name": "sensor_id", "type": "STRING", "mode": "REQUIRED"},
-            {"name": "temperature", "type": "INTEGER", "mode": "NULLABLE"},
-            {"name": "humidity", "type": "INTEGER", "mode": "NULLABLE"},
-            {"name": "timestamp", "type": "TIMESTAMP", "mode": "REQUIRED"}
+            {"name": "temperature", "type": "FLOAT", "mode": "NULLABLE"},
+            {"name": "humidity", "type": "FLOAT", "mode": "NULLABLE"},
+            {"name": "timestamp", "type": "TIMESTAMP", "mode": "REQUIRED"},
+            {"name": "processing_time", "type": "TIMESTAMP", "mode": "NULLABLE"},
+            {"name": "is_valid", "type": "BOOLEAN", "mode": "NULLABLE"}
         ]
     }
 
