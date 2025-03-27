@@ -1,6 +1,7 @@
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import WriteToBigQuery, BigQueryDisposition
+from apache_beam.io.filesystems import FileSystems
 import json
 
 class ParseJSONToDict(beam.DoFn):
@@ -11,10 +12,26 @@ class ParseJSONToDict(beam.DoFn):
         except Exception:
             return  # Skip invalid JSON lines
 
+def list_gcs_files(bucket_path):
+    """List all JSON files in the specified GCS bucket directory."""
+    try:
+        match_results = FileSystems.match([bucket_path])
+        if not match_results:
+            print("No files matched the pattern.")
+            return []
+        return [metadata.path for metadata in match_results[0].metadata_list]
+    except Exception as e:
+        print("Error listing files:", e)
+        return []
+
 def run():
     # Input: Cleaned JSON files from Silver layer in GCS
-    INPUT_PATH = "gs://angkas-silver-bucket/processed-data/valid/*.json"
+    BUCKET_PATH = "gs://angkas-silver-bucket/processed-data/valid/*.json"
+    input_files = list_gcs_files(BUCKET_PATH)
 
+    if not input_files:
+        print("No files to process. Exiting pipeline.")
+        return
 
     # Output: BigQuery target location
     PROJECT_ID = "practicebigdataanalytics"
@@ -34,7 +51,7 @@ def run():
 
     # Target BigQuery table schema
     table_schema = {
-    "fields": [
+        "fields": [
             {"name": "sensor_id", "type": "STRING", "mode": "REQUIRED"},
             {"name": "temperature", "type": "FLOAT", "mode": "NULLABLE"},
             {"name": "humidity", "type": "FLOAT", "mode": "NULLABLE"},
@@ -47,9 +64,10 @@ def run():
     with beam.Pipeline(options=pipeline_options) as p:
         (
             p
-            | "Read Cleaned JSON from GCS" >> beam.io.ReadFromText(INPUT_PATH)
+            | "Create list of files" >> beam.Create(input_files)
+            | "Read File Contents" >> beam.FlatMap(lambda file: beam.io.ReadFromText(file))
             | "Parse JSON to Dict" >> beam.ParDo(ParseJSONToDict())
-            | "Write to BigQuery" >> WriteToBigQuery(
+            | "Write to BigQuery" >> WriteToBiQuery(
                 table=f"{PROJECT_ID}:{DATASET}.{TABLE}",
                 schema=table_schema,
                 write_disposition=BigQueryDisposition.WRITE_APPEND,
