@@ -1,71 +1,114 @@
-import apache_beam as beam
 import json
-from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.io.filesystems import FileSystems
+import logging
+from datetime import datetime
 
-class ParseAndCleanseJSON(beam.DoFn):
+import apache_beam as beam
+from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.io import fileio
+
+# Configuration with your specific bucket names
+CONFIG = {
+    'project': "practicebigdataanalytics",
+    'region': 'us-central1',
+    'input_path': 'gs://angkas-bronze-bucket/raw-data/*.json',
+    'output_path': 'gs://angkas-silver-bucket/processed-data/',
+    'temp_location': 'gs://angkas-silver-bucket/temp/',
+    'staging_location': 'gs://angkas-silver-bucket/staging/',
+    'runner': 'DataflowRunner',
+    'streaming': False,
+}
+
+class ProcessSensorData(beam.DoFn):
     def process(self, element):
         try:
-            record = json.loads(element)
+            data = json.loads(element)
+            processed_data = {
+                'sensor_id': str(data['sensor_id']),
+                'temperature': float(data['temperature']),
+                'humidity': float(data['humidity']),
+                'timestamp': data['timestamp'],
+                'processing_time': datetime.utcnow().isoformat() + 'Z',
+                'is_valid': True
+            }
+            
+            # Data quality checks
+            if not (-50 <= processed_data['temperature'] <= 150):
+                processed_data['is_valid'] = False
+                processed_data['validation_error'] = 'Temperature out of range'
+                
+            if not (0 <= processed_data['humidity'] <= 100):
+                processed_data['is_valid'] = False
+                processed_data['validation_error'] = 'Humidity out of range'
+                
+            yield processed_data
+            
+        except Exception as e:
+            logging.error(f"Error processing record: {element}, Error: {str(e)}")
+            yield {
+                'raw_data': element,
+                'error': str(e),
+                'processing_time': datetime.utcnow().isoformat() + 'Z',
+                'is_valid': False
+            }
 
-            if not all(k in record for k in ("sensor_id", "temperature", "humidity", "timestamp")):
-                return  # Skip records with missing fields
-
-            record["temperature"] = int(record["temperature"])
-            record["humidity"] = int(record["humidity"])
-
-            if "T" not in record["timestamp"] or "Z" not in record["timestamp"]:
-                return  # Skip invalid timestamps
-
-            yield json.dumps(record)
-        except Exception:
-            return  # Skip corrupt records
-
-def list_gcs_files(bucket_path):
-    """List all JSON files in the specified GCS bucket directory."""
-    try:
-        filesystem = FileSystems.get_filesystem('gs')
-        match_results = filesystem.match([bucket_path])
-        if not match_results:
-            print("No files matched the pattern.")
-            return []
-        
-        return [metadata.path for metadata in match_results[0].metadata_list]
-    except Exception as e:
-        print("Error listing files:", e)
-        return []
-
-def run():
-    BUCKET_PATH = "gs://angkas-bronze-bucket/raw-data/*.json"  # Folder containing JSON files
-    OUTPUT_PATH = "gs://angkas-silver-bucket/cleaned-data/output"
-
-    # List all matching files
-    input_files = list_gcs_files(BUCKET_PATH)
-    
-    if not input_files:
-        print("No files found. Exiting pipeline.")
-        return
-    
-    # Beam pipeline options
-    pipeline_options = PipelineOptions(
-        runner="DataflowRunner",
-        project="practicebigdataanalytics",
-        region="us-central1",
-        job_name="angkas-bronze-silver", 
-        temp_location="gs://angkas-silver-bucket/temp/",
-        staging_location="gs://angkas-silver-bucket/staging/",
+def get_pipeline_options():
+    return PipelineOptions(
+        project=CONFIG['project'],
+        runner=CONFIG['runner'],
+        region=CONFIG['region'],
+        temp_location=CONFIG['temp_location'],
+        staging_location=CONFIG['staging_location'],
         save_main_session=True
     )
 
-    # Define Beam pipeline
-    with beam.Pipeline(options=pipeline_options) as p:
-        (
-            p
-            | "Read JSON Files from GCS" >> beam.Create(input_files)  # Create PCollection of filenames
-            | "Read File Contents" >> beam.FlatMap(lambda file: beam.io.ReadFromText(file))  # Read each file
-            | "Parse and Cleanse JSON Data" >> beam.ParDo(ParseAndCleanseJSON())
-            | "Write Cleaned JSON to Silver Bucket" >> WriteToText(OUTPUT_PATH, file_name_suffix=".json")
+def run():
+    # Verify GCP authentication in Cloud Shell
+    logging.info(f"Starting pipeline with config: {CONFIG}")
+    
+    pipeline_options = get_pipeline_options()
+    
+    with beam.Pipeline(options=pipeline_options) as pipeline:
+        # Read from bronze bucket
+        raw_data = (
+            pipeline
+            | 'ReadFromBronze' >> fileio.MatchFiles(CONFIG['input_path'])
+            | 'ReadMatches' >> fileio.ReadMatches()
+            | 'ReadFileContents' >> beam.Map(lambda x: x.read_utf8().strip())
+            | 'FilterEmptyLines' >> beam.Filter(lambda x: x != '')
+        )
+        
+        # Process and validate data
+        processed_data = (
+            raw_data
+            | 'ParseJSON' >> beam.ParDo(ProcessSensorData())
+        )
+        
+        # Split into valid and invalid records
+        valid_records = processed_data | 'FilterValid' >> beam.Filter(lambda x: x['is_valid'])
+        invalid_records = processed_data | 'FilterInvalid' >> beam.Filter(lambda x: not x['is_valid'])
+        
+        # Write valid records with correct JSON extension
+        _ = (
+            valid_records
+            | 'ConvertValidToJSON' >> beam.Map(json.dumps)
+            | 'WriteValidToSilver' >> beam.io.WriteToText(
+                CONFIG['output_path'] + 'valid/output',
+                file_name_suffix='.json',  # Ensures .json at the end
+                shard_name_template=''  # Ensures single file instead of multiple parts
+            )
+        )
+        
+        # Write invalid records with correct JSON extension
+        _ = (
+            invalid_records
+            | 'ConvertInvalidToJSON' >> beam.Map(json.dumps)
+            | 'WriteInvalidToErrors' >> beam.io.WriteToText(
+                CONFIG['output_path'] + 'errors/error',
+                file_name_suffix='.json',  # Ensures .json at the end
+                shard_name_template=''  # Ensures single file instead of multiple parts
+            )
         )
 
-if __name__ == "__main__":
+if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.INFO)
     run()
