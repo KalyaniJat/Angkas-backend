@@ -13,7 +13,7 @@ class ParseJSONToDict(beam.DoFn):
 
 def run():
     # Input: Cleaned JSON files from Silver layer in GCS
-    INPUT_PATH = "gs://angkas-silver-bucket/processed-data/valid/*.json"
+    INPUT_PATH = "gs://angkas-silver-bucket/processed-data/valid/silver.json"
 
 
     # Output: BigQuery target location
