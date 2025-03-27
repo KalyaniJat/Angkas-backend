@@ -32,7 +32,7 @@ def list_gcs_files(bucket_path):
 
 def run():
     # Input: Cleaned JSON files from Silver layer in GCS
-    BUCKET_PATH = "gs://angkas-silver-bucket/processed-data/valid/*.json"
+    BUCKET_PATH = "gs://angkas-silver-central1-bucket/processed-data/valid/*.json"
     input_files = list_gcs_files(BUCKET_PATH)
 
     if not input_files:
@@ -50,8 +50,8 @@ def run():
         project=PROJECT_ID,
         region="us-central1",
         job_name="silver-to-gold",
-        temp_location="gs://angkas-gold-bucket/temp/",
-        staging_location="gs://angkas-gold-bucket/staging/",
+        temp_location="gs://angkas-gold-central1-bucket/temp/",
+        staging_location="gs://angkas-gold-central1-bucket/staging/",
         save_main_session=True
     )
 
@@ -78,7 +78,7 @@ def run():
                 schema=table_schema,
                 write_disposition=BigQueryDisposition.WRITE_APPEND,
                 create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
-                custom_gcs_temp_location="gs://angkas-gold-bucket/temp/",
+                custom_gcs_temp_location="gs://angkas-gold-central1-bucket/temp/",
                 method="STREAMING_INSERTS"
             )
         )
