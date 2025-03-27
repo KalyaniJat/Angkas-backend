@@ -67,7 +67,7 @@ def run():
             | "Create list of files" >> beam.Create(input_files)
             | "Read File Contents" >> beam.FlatMap(lambda file: beam.io.ReadFromText(file))
             | "Parse JSON to Dict" >> beam.ParDo(ParseJSONToDict())
-            | "Write to BigQuery" >> WriteToBiQuery(
+            | "Write to BigQuery" >> WriteToBigQuery(
                 table=f"{PROJECT_ID}:{DATASET}.{TABLE}",
                 schema=table_schema,
                 write_disposition=BigQueryDisposition.WRITE_APPEND,
