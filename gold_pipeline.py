@@ -12,6 +12,12 @@ class ParseJSONToDict(beam.DoFn):
         except Exception:
             return  # Skip invalid JSON lines
 
+def read_gcs_file(file_path):
+    """Reads a single GCS file and yields lines"""
+    with FileSystems.open(file_path) as f:
+        for line in f:
+            yield line.decode("utf-8")
+
 def list_gcs_files(bucket_path):
     """List all JSON files in the specified GCS bucket directory."""
     try:
@@ -65,7 +71,7 @@ def run():
         (
             p
             | "Create list of files" >> beam.Create(input_files)
-            | "Read File Contents" >> beam.FlatMap(lambda file: beam.io.ReadFromText(file))
+            | "Read file content from GCS" >> beam.FlatMap(read_gcs_file)
             | "Parse JSON to Dict" >> beam.ParDo(ParseJSONToDict())
             | "Write to BigQuery" >> WriteToBigQuery(
                 table=f"{PROJECT_ID}:{DATASET}.{TABLE}",
