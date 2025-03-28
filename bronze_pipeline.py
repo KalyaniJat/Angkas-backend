@@ -11,7 +11,7 @@ from apache_beam.transforms.window import FixedWindows
 pipeline_options = PipelineOptions(
     runner="DataflowRunner",
     project="practicebigdataanalytics",
-    temp_location="gs://angkas-bronze-bucket/temp",
+    temp_location="gs://angkas-bronze-central1-bucket/temp",
     region="us-central1",
     streaming=True,
     save_main_session=True
@@ -59,5 +59,5 @@ with Pipeline(options=pipeline_options) as p:
      | "Windowing" >> WindowInto(FixedWindows(60))  # ✅ Fix: Apply windowing before grouping
      | "Assign Unique Key" >> WithKeys(lambda _: str(uuid.uuid4()))  # Unique key per message
      | "Group by Key" >> beam.GroupByKey()  # ✅ Now allowed because we applied windowing
-     | "Write to GCS" >> ParDo(WriteToGCS("gs://angkas-bronze-bucket/raw-data/"))
+     | "Write to GCS" >> ParDo(WriteToGCS("gs://angkas-bronze-central1-bucket/raw-data/"))
     )

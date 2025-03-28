@@ -10,10 +10,10 @@ from apache_beam.io import fileio
 CONFIG = {
     'project': "practicebigdataanalytics",
     'region': 'us-central1',
-    'input_path': 'gs://angkas-bronze-bucket/raw-data/*.json',
-    'output_path': 'gs://angkas-silver-bucket/processed-data/',
-    'temp_location': 'gs://angkas-silver-bucket/temp/',
-    'staging_location': 'gs://angkas-silver-bucket/staging/',
+    'input_path': 'gs://angkas-bronze-central1-bucket/raw-data/*.json',
+    'output_path': 'gs://angkas-silver-central1-bucket/processed-data/',
+    'temp_location': 'gs://angkas-silver-central1-bucket/temp/',
+    'staging_location': 'gs://angkas-silver-central1-bucket/staging/',
     'runner': 'DataflowRunner',
     'streaming': False,
 }
