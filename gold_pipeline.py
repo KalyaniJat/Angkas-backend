@@ -91,20 +91,22 @@ def run():
             {"name": "pickup_long", "type": "FLOAT", "mode": "NULLABLE"},
             {"name": "pickup_poi", "type": "STRING", "mode": "NULLABLE"},
             {"name": "pickup_angkas_place_id", "type": "STRING", "mode": "NULLABLE"},
-            {"name": "list_count", "type": "STRING", "mode": "NULLABLE"},
+            {"name": "list_count", "type": "INTEGER", "mode": "NULLABLE"},
             {"name": "location_id", "type": "STRING", "mode": "NULLABLE"},
-            {"name": "passenger_count", "type": "STRING", "mode": "NULLABLE"},
+            {"name": "passenger_count", "type": "INTEGER", "mode": "NULLABLE"},
             {"name": "dropoff_lat", "type": "FLOAT", "mode": "NULLABLE"},
             {"name": "dropoff_long", "type": "FLOAT", "mode": "NULLABLE"},
             {"name": "dropoff_poi", "type": "STRING", "mode": "NULLABLE"},
             {"name": "dropoff_angkas_place_id", "type": "STRING", "mode": "NULLABLE"},
-            {"name": "heading_degree", "type": "STRING", "mode": "NULLABLE"},
-            {"name": "percentage", "type": "STRING", "mode": "NULLABLE"},
-            {"name": "speed", "type": "STRING", "mode": "NULLABLE"},
+            {"name": "heading_degree", "type": "INTEGER", "mode": "NULLABLE"},
+            {"name": "percentage", "type": "INTEGER", "mode": "NULLABLE"},
+            {"name": "speed", "type": "INTEGER", "mode": "NULLABLE"},
             {"name": "speed_measurement", "type": "STRING", "mode": "NULLABLE"},
-            {"name": "is_enabled", "type": "INTEGER", "mode": "NULLABLE"},
-            {"name": "is_plugged", "type": "INTEGER", "mode": "NULLABLE"},
-            {"name": "is_power_safe_mode", "type": "INTEGER", "mode": "NULLABLE"}
+            {"name": "is_enabled", "type": "BOOLEAN", "mode": "NULLABLE"},
+            {"name": "is_plugged", "type": "BOOLEAN", "mode": "NULLABLE"},
+            {"name": "is_power_safe_mode", "type": "BOOLEAN", "mode": "NULLABLE"},
+            {"name": "processing_time", "type": "TIMESTAMP", "mode": "NULLABLE"},
+            {"name": "is_valid", "type": "BOOLEAN", "mode": "NULLABLE"}
         ]
     }
 
