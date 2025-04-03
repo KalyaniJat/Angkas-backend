@@ -122,7 +122,7 @@ def run():
                 write_disposition=BigQueryDisposition.WRITE_APPEND,
                 create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
                 custom_gcs_temp_location="gs://angkas-gold-central1-bucket/temp/",
-                method="STREAMING_INSERTS"
+                method="FILE_LOADS"
             )
         )
 
