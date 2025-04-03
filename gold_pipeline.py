@@ -49,7 +49,7 @@ def run():
         runner="DataflowRunner",
         project=PROJECT_ID,
         region="us-central1",
-        job_name="silver-to-gold",
+        job_name="silver-to-gold1",
         temp_location="gs://angkas-gold-central1-bucket/temp/",
         staging_location="gs://angkas-gold-central1-bucket/staging/",
         save_main_session=True
