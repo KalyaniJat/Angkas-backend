@@ -2,6 +2,7 @@ import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import WriteToBigQuery, BigQueryDisposition
 from apache_beam.io.filesystems import FileSystems
+from datetime import datetime
 import json
 
 class ParseJSONToDict(beam.DoFn):
@@ -11,6 +12,11 @@ class ParseJSONToDict(beam.DoFn):
             yield record
         except Exception:
             return  # Skip invalid JSON lines
+
+class AddCurrentTimestamp(beam.DoFn):
+    def process(self, element):
+        element["DayTime"] = datetime.utcnow().isoformat()  # Adds current UTC timestamp
+        yield element
 
 def read_gcs_file(file_path):
     """Reads a single GCS file and yields lines"""
@@ -31,7 +37,6 @@ def list_gcs_files(bucket_path):
         return []
 
 def run():
-    # Input: Cleaned JSON files from Silver layer in GCS
     BUCKET_PATH = "gs://angkas-silver-central1-bucket/processed-data/valid/*.json"
     input_files = list_gcs_files(BUCKET_PATH)
 
@@ -39,12 +44,10 @@ def run():
         print("No files to process. Exiting pipeline.")
         return
 
-    # Output: BigQuery target location
     PROJECT_ID = "practicebigdataanalytics"
     DATASET = "sensor_dataset"
     TABLE = "aggregated_sensor_data"
 
-    # Dataflow pipeline options
     pipeline_options = PipelineOptions(
         runner="DataflowRunner",
         project=PROJECT_ID,
@@ -55,7 +58,6 @@ def run():
         save_main_session=True
     )
 
-    # Target BigQuery table schema
     table_schema = {
         "fields": [
             {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"},
@@ -106,7 +108,8 @@ def run():
             {"name": "is_plugged", "type": "BOOLEAN", "mode": "NULLABLE"},
             {"name": "is_power_safe_mode", "type": "BOOLEAN", "mode": "NULLABLE"},
             {"name": "processing_time", "type": "TIMESTAMP", "mode": "NULLABLE"},
-            {"name": "is_valid", "type": "BOOLEAN", "mode": "NULLABLE"}
+            {"name": "is_valid", "type": "BOOLEAN", "mode": "NULLABLE"},
+            {"name": "DayTime", "type": "TIMESTAMP", "mode": "NULLABLE"}
         ]
     }
 
@@ -116,6 +119,7 @@ def run():
             | "Create list of files" >> beam.Create(input_files)
             | "Read file content from GCS" >> beam.FlatMap(read_gcs_file)
             | "Parse JSON to Dict" >> beam.ParDo(ParseJSONToDict())
+            | "Add current DayTime" >> beam.ParDo(AddCurrentTimestamp())
             | "Write to BigQuery" >> WriteToBigQuery(
                 table=f"{PROJECT_ID}:{DATASET}.{TABLE}",
                 schema=table_schema,
