@@ -18,14 +18,26 @@ class AddCurrentTimestamp(beam.DoFn):
         element["DayTime"] = datetime.utcnow().isoformat()  # Adds current UTC timestamp
         yield element
 
+class CleanNullValues(beam.DoFn):
+    def __init__(self, string_fields, numeric_fields):
+        self.string_fields = string_fields
+        self.numeric_fields = numeric_fields
+
+    def process(self, element):
+        for field in self.string_fields:
+            if field not in element or element[field] is None:
+                element[field] = "invalid"
+        for field in self.numeric_fields:
+            if field not in element or element[field] is None:
+                element[field] = 0
+        yield element
+
 def read_gcs_file(file_path):
-    """Reads a single GCS file and yields lines"""
     with FileSystems.open(file_path) as f:
         for line in f:
             yield line.decode("utf-8")
 
 def list_gcs_files(bucket_path):
-    """List all JSON files in the specified GCS bucket directory."""
     try:
         match_results = FileSystems.match([bucket_path])
         if not match_results:
@@ -57,6 +69,21 @@ def run():
         staging_location="gs://angkas-gold-central1-bucket/staging/",
         save_main_session=True
     )
+
+    string_fields = [
+        "event_id", "user_id", "attributes_user_id", "mobile_number", "event_name", "trip_id", 
+        "trip_status", "attributes_trip_id", "service_type", "attributes_iteration_id", "promo_code",
+        "attributes_app_version", "ui_version", "title", "incentive_id", "demand_type", "os_version",
+        "device_platform", "device_model", "device_name", "address_name", "pickup_poi", 
+        "pickup_angkas_place_id", "location_id", "dropoff_poi", "dropoff_angkas_place_id", 
+        "speed_measurement"
+    ]
+
+    numeric_fields = [
+        "final_fare", "price_discount", "total_fare", "trip_distance", "latitude", "longitude", 
+        "pickup_lat", "pickup_long", "list_count", "passenger_count", "dropoff_lat", 
+        "dropoff_long", "heading_degree", "percentage", "speed"
+    ]
 
     table_schema = {
         "fields": [
@@ -119,6 +146,7 @@ def run():
             | "Create list of files" >> beam.Create(input_files)
             | "Read file content from GCS" >> beam.FlatMap(read_gcs_file)
             | "Parse JSON to Dict" >> beam.ParDo(ParseJSONToDict())
+            | "Clean Nulls" >> beam.ParDo(CleanNullValues(string_fields, numeric_fields))
             | "Add current DayTime" >> beam.ParDo(AddCurrentTimestamp())
             | "Write to BigQuery" >> WriteToBigQuery(
                 table=f"{PROJECT_ID}:{DATASET}.{TABLE}",
