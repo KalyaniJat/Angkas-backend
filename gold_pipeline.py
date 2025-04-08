@@ -4,7 +4,7 @@ from apache_beam.io.gcp.bigquery import WriteToBigQuery, BigQueryDisposition
 from apache_beam.io.filesystems import FileSystems
 from datetime import datetime
 import json
-import subprocess  # to trigger the BQ cleanup script
+from post_bq_cleanup import run_bq_update
 
 class ParseJSONToDict(beam.DoFn):
     def process(self, element):
@@ -130,6 +130,9 @@ def run():
             )
         )
 
-    # Trigger BigQuery post-cleanup script
-    print("Running BigQuery cleanup...")
-    subprocess.run(["python3", "post_bq_cleanup.py"], check=True)
+    # ✅ Call the cleanup function directly
+    print("Running BigQuery null cleanup...")
+    run_bq_update()
+
+if __name__ == "__main__":
+    run()
