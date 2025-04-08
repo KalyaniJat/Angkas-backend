@@ -25,10 +25,10 @@ class CleanNullValues(beam.DoFn):
 
     def process(self, element):
         for field in self.string_fields:
-            if field not in element or element[field] is None:
+            if field not in element or element[field] is None or str(element[field]).strip() == "":
                 element[field] = "invalid"
         for field in self.numeric_fields:
-            if field not in element or element[field] is None:
+            if field not in element or element[field] is None or str(element[field]).strip() == "":
                 element[field] = 0
         yield element
 
