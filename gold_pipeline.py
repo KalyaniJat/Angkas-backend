@@ -4,6 +4,7 @@ from apache_beam.io.gcp.bigquery import WriteToBigQuery, BigQueryDisposition
 from apache_beam.io.filesystems import FileSystems
 from datetime import datetime
 import json
+import subprocess  # to trigger the BQ cleanup script
 
 class ParseJSONToDict(beam.DoFn):
     def process(self, element):
@@ -15,21 +16,7 @@ class ParseJSONToDict(beam.DoFn):
 
 class AddCurrentTimestamp(beam.DoFn):
     def process(self, element):
-        element["DayTime"] = datetime.utcnow().isoformat()  # Adds current UTC timestamp
-        yield element
-
-class CleanNullValues(beam.DoFn):
-    def __init__(self, string_fields, numeric_fields):
-        self.string_fields = string_fields
-        self.numeric_fields = numeric_fields
-
-    def process(self, element):
-        for field in self.string_fields:
-            if field not in element or element[field] is None or str(element[field]).strip() == "":
-                element[field] = "invalid"
-        for field in self.numeric_fields:
-            if field not in element or element[field] is None or str(element[field]).strip() == "":
-                element[field] = 0
+        element["DayTime"] = datetime.utcnow().isoformat()
         yield element
 
 def read_gcs_file(file_path):
@@ -69,21 +56,6 @@ def run():
         staging_location="gs://angkas-gold-central1-bucket/staging/",
         save_main_session=True
     )
-
-    string_fields = [
-        "event_id", "user_id", "attributes_user_id", "mobile_number", "event_name", "trip_id", 
-        "trip_status", "attributes_trip_id", "service_type", "attributes_iteration_id", "promo_code",
-        "attributes_app_version", "ui_version", "title", "incentive_id", "demand_type", "os_version",
-        "device_platform", "device_model", "device_name", "address_name", "pickup_poi", 
-        "pickup_angkas_place_id", "location_id", "dropoff_poi", "dropoff_angkas_place_id", 
-        "speed_measurement"
-    ]
-
-    numeric_fields = [
-        "final_fare", "price_discount", "total_fare", "trip_distance", "latitude", "longitude", 
-        "pickup_lat", "pickup_long", "list_count", "passenger_count", "dropoff_lat", 
-        "dropoff_long", "heading_degree", "percentage", "speed"
-    ]
 
     table_schema = {
         "fields": [
@@ -140,13 +112,13 @@ def run():
         ]
     }
 
+    # Run pipeline
     with beam.Pipeline(options=pipeline_options) as p:
         (
             p
             | "Create list of files" >> beam.Create(input_files)
             | "Read file content from GCS" >> beam.FlatMap(read_gcs_file)
             | "Parse JSON to Dict" >> beam.ParDo(ParseJSONToDict())
-            | "Clean Nulls" >> beam.ParDo(CleanNullValues(string_fields, numeric_fields))
             | "Add current DayTime" >> beam.ParDo(AddCurrentTimestamp())
             | "Write to BigQuery" >> WriteToBigQuery(
                 table=f"{PROJECT_ID}:{DATASET}.{TABLE}",
@@ -158,5 +130,6 @@ def run():
             )
         )
 
-if __name__ == "__main__":
-    run()
+    # Trigger BigQuery post-cleanup script
+    print("Running BigQuery cleanup...")
+    subprocess.run(["python3", "post_bq_cleanup.py"], check=True)
